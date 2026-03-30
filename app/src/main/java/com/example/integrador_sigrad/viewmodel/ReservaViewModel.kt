@@ -3,6 +3,7 @@ package com.example.integrador_sigrad.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.integrador_sigrad.model.ReservaRequest
+import com.example.integrador_sigrad.model.ReservaResponse
 import com.example.integrador_sigrad.network.RetrofitClient // <-- Importante: Importa tu RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,12 @@ class ReservaViewModel : ViewModel() {
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
+
+    private val _horasOcupadas = MutableStateFlow<List<ReservaResponse>>(emptyList())
+    val horasOcupadas: StateFlow<List<ReservaResponse>> = _horasOcupadas
+
+    private val _cargandoHoras = MutableStateFlow(false)
+    val cargandoHoras: StateFlow<Boolean> = _cargandoHoras
 
     fun crearReserva(request: ReservaRequest) {
         viewModelScope.launch {
@@ -95,5 +102,25 @@ class ReservaViewModel : ViewModel() {
                 _estaCargando.value = false
             }
         }
+    }
+
+    fun cargarHorasOcupadas(idArea: Long, fecha: String) {
+        viewModelScope.launch {
+            _cargandoHoras.value = true
+            try {
+                val response = RetrofitClient.apiService.obtenerHorasOcupadas(idArea, fecha)
+                if (response.isSuccessful) {
+                    _horasOcupadas.value = response.body() ?: emptyList()
+                }
+            } catch (e: Exception) {
+                _error.value = "Error al cargar horarios: ${e.message}"
+            } finally {
+                _cargandoHoras.value = false
+            }
+        }
+    }
+
+    fun limpiarHoras() {
+        _horasOcupadas.value = emptyList()
     }
 }

@@ -17,36 +17,25 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.integrador_sigrad.navigation.AppNavGraph
 import com.example.integrador_sigrad.navigation.RutasNavegacion
+import com.example.integrador_sigrad.viewmodel.AuthViewModel
 
-/**
- * Pantalla principal que contiene el Scaffold con la barra de navegación inferior
- * y el grafo de navegación de la aplicación.
- */
 @Composable
-fun MainScreen() {
-    // Controlador de navegación que gestiona la navegación entre pantallas
+fun MainScreen(authViewModel: AuthViewModel) { // ✅ Recibe el authViewModel
     val navController = rememberNavController()
 
     Scaffold(
         bottomBar = { BottomNavigationBar(navController) }
     ) { paddingValues ->
-        // Grafo de navegación que contiene todas las pantallas
         AppNavGraph(
             navController = navController,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(paddingValues),
+            authViewModel = authViewModel // ✅ Lo pasa al NavGraph
         )
     }
 }
 
-/**
- * Barra de navegación inferior que permite navegar entre las secciones principales
- * de la aplicación (Inicio, Áreas, Historial, Perfil).
- * 
- * @param navController Controlador de navegación para gestionar los cambios de pantalla
- */
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
-    // Obtenemos la ruta actual para resaltar el botón correspondiente
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val rutaActual = navBackStackEntry?.destination?.route
 
@@ -54,7 +43,6 @@ fun BottomNavigationBar(navController: NavHostController) {
         containerColor = Color.White,
         tonalElevation = 8.dp
     ) {
-        // Botón 1: Inicio
         NavigationBarItem(
             icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
             label = { Text("Inicio") },
@@ -68,13 +56,11 @@ fun BottomNavigationBar(navController: NavHostController) {
                 indicatorColor = Color(0xFFF3F4F6)
             )
         )
-        
-        // Botón 2: Áreas (también se selecciona cuando estamos en detalle o formulario)
         NavigationBarItem(
             icon = { Icon(Icons.Default.DateRange, contentDescription = "Áreas") },
             label = { Text("Áreas") },
-            selected = rutaActual == RutasNavegacion.AREAS 
-                    || rutaActual?.startsWith("detalle") == true 
+            selected = rutaActual == RutasNavegacion.AREAS
+                    || rutaActual?.startsWith("detalle") == true
                     || rutaActual?.startsWith("formulario") == true,
             onClick = { navegarSeguro(navController, RutasNavegacion.AREAS) },
             colors = NavigationBarItemDefaults.colors(
@@ -85,8 +71,6 @@ fun BottomNavigationBar(navController: NavHostController) {
                 indicatorColor = Color(0xFFF3F4F6)
             )
         )
-        
-        // Botón 3: Historial
         NavigationBarItem(
             icon = { Icon(Icons.Default.List, contentDescription = "Historial") },
             label = { Text("Historial") },
@@ -100,8 +84,6 @@ fun BottomNavigationBar(navController: NavHostController) {
                 indicatorColor = Color(0xFFF3F4F6)
             )
         )
-        
-        // Botón 4: Perfil
         NavigationBarItem(
             icon = { Icon(Icons.Default.Person, contentDescription = "Perfil") },
             label = { Text("Perfil") },
@@ -118,13 +100,6 @@ fun BottomNavigationBar(navController: NavHostController) {
     }
 }
 
-/**
- * Función auxiliar para realizar navegación segura evitando duplicados en el stack.
- * Mantiene el estado de las pantallas y evita crear múltiples instancias de la misma pantalla.
- * 
- * @param navController Controlador de navegación
- * @param ruta Ruta destino a la que navegar
- */
 fun navegarSeguro(navController: NavHostController, ruta: String) {
     navController.navigate(ruta) {
         popUpTo(navController.graph.startDestinationId) { saveState = true }

@@ -55,4 +55,22 @@ interface ApiService {
         @Path("id") idReserva: Long,
         @Body request: ReservaRequest
     ): Response<Map<String, Any>>
+
+    @GET("api/reservas/ocupadas/{idArea}/{fecha}")
+    suspend fun obtenerHorasOcupadas(
+        @Path("idArea") idArea: Long,
+        @Path("fecha") fecha: String
+    ): Response<List<ReservaResponse>>
+
+
+    //Perfil (Editarlo y traer la info )
+
+    @PUT("api/usuarios/actualizar/{id}")
+    suspend fun actualizarUsuario(
+        @Path("id") id: Long,
+        @Body usuario: Usuario
+    ): Response<Map<String, Any>>
+
+    @GET("api/usuarios/{id}")
+    suspend fun obtenerUsuarioPorId(@Path("id") id: Long): Response<Usuario>
 }

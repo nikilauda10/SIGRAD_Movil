@@ -47,11 +47,9 @@ class AreaDeportivaViewModel : ViewModel() {
             _estaCargando.value = true
             _error.value = null
             try {
-                // ✅ Llamadas en PARALELO — se ejecutan al mismo tiempo
                 val areasDeferred = async { RetrofitClient.apiService.obtenerAreas() }
                 val reservasDeferred = async { RetrofitClient.apiService.obtenerReservasPorUsuario(idUsuario) }
 
-                // Esperamos que terminen las dos
                 val responseAreas = areasDeferred.await()
                 val responseReservas = reservasDeferred.await()
 
@@ -65,12 +63,12 @@ class AreaDeportivaViewModel : ViewModel() {
 
                 _reservasUsuario.value = reservasConfirmadas
 
-                // ✅ Cruzamos los datos y actualizamos la UI de una sola vez
+                // ✅ Guardamos TODAS las reservas de cada área, no solo la primera
                 _areas.value = areasRaw.map { area ->
-                    val reservaDeEstaArea = reservasConfirmadas.find { it.area?.id == area.id }
+                    val reservasDeEstaArea = reservasConfirmadas.filter { it.area?.id == area.id }
                     area.copy(
-                        idUsuarioReserva = if (reservaDeEstaArea != null) idUsuario else null,
-                        idReservaActiva = reservaDeEstaArea?.id
+                        idUsuarioReserva = if (reservasDeEstaArea.isNotEmpty()) idUsuario else null,
+                        reservasActivas = reservasDeEstaArea
                     )
                 }
 
@@ -148,5 +146,25 @@ class AreaDeportivaViewModel : ViewModel() {
 
     fun limpiarCancelacion() {
         _cancelacionExitosa.value = false
+    }
+    fun cancelarReservaEspecifica(idReserva: Long, idUsuario: Long) {
+        viewModelScope.launch {
+            _estaCargando.value = true
+            _error.value = null
+            try {
+                val response = RetrofitClient.apiService.cancelarReserva(idReserva)
+                if (response.isSuccessful) {
+                    _cancelacionExitosa.value = true
+                    _triggerRecarga.value += 1
+                    cargarTodo(idUsuario)
+                } else {
+                    _error.value = "Error al cancelar: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                _error.value = "Error de conexión: ${e.message}"
+            } finally {
+                _estaCargando.value = false
+            }
+        }
     }
 }

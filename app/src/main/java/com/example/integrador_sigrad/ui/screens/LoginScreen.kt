@@ -23,10 +23,10 @@ import com.example.integrador_sigrad.viewmodel.AuthViewModel
 
 @Composable
 fun LoginScreen(
+    authViewModel: AuthViewModel, // ✅ Recibe el mismo de MainActivity
     onNavigateToRegistro: () -> Unit,
     onNavigateToRecuperar: () -> Unit,
-    onLoginSuccess: () -> Unit,
-    viewModel: AuthViewModel = viewModel()
+    onLoginSuccess: () -> Unit
 ) {
     var correo by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -41,18 +41,21 @@ fun LoginScreen(
         Text(text = "Iniciar Sesión", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(modifier = Modifier.height(24.dp))
 
-        CustomTextField(label = "Correo:", placeholder = "Correo electrónico", value = correo, onValueChange = { correo = it })
-
+        CustomTextField(
+            label = "Correo:",
+            placeholder = "Correo electrónico",
+            value = correo,
+            onValueChange = { correo = it }
+        )
 
         CustomPasswordField(
             value = password,
             onValueChange = { password = it }
         )
 
-        // Mensaje de error dinámico
-        if (viewModel.errorMessage != null) {
+        if (authViewModel.errorMessage != null) {
             Text(
-                text = viewModel.errorMessage!!,
+                text = authViewModel.errorMessage!!,
                 color = Color.Red,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(top = 8.dp)
@@ -62,13 +65,13 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { viewModel.login(correo, password, onLoginSuccess) },
+            onClick = { authViewModel.login(correo, password, onLoginSuccess) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ColorBotonOscuro),
-            enabled = !viewModel.isLoading
+            enabled = !authViewModel.isLoading
         ) {
-            if (viewModel.isLoading) {
+            if (authViewModel.isLoading) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
             } else {
                 Text(text = "Iniciar Sesión", color = Color.White, fontWeight = FontWeight.Bold)

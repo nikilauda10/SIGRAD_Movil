@@ -33,21 +33,51 @@ class AuthViewModel : ViewModel() {
 
                 if (response.isSuccessful) {
                     val body = response.body()
+                    val idUsuario = body?.id ?: 0L
 
-                    // ✅ Guardamos el usuario con el ID real que devuelve el backend
-                    usuarioLogueado = Usuario(
-                        id = body?.id ?: 0L,
-                        nombre = body?.nombre ?: "",
-                        emailInstitucional = correo,
-                        rol = body?.rol ?: "",
-                        matricula = "",
-                        carrera = "",
-                        telefono = "",
-                        contrasena = ""
-                    )
+                    println("✅ LOGIN OK: id=$idUsuario nombre=${body?.nombre}")
 
-                    println("✅ USUARIO LOGUEADO: id=${usuarioLogueado?.id} nombre=${usuarioLogueado?.nombre}")
+                    // ✅ Cargamos el usuario COMPLETO con todos sus datos
+                    try {
+                        val responseUsuario = RetrofitClient.apiService.obtenerUsuarioPorId(idUsuario)
+                        println("📡 CÓDIGO RESPUESTA USUARIO: ${responseUsuario.code()}")
+                        println("📡 BODY USUARIO: ${responseUsuario.body()}")
+                        println("📡 ERROR USUARIO: ${responseUsuario.errorBody()?.string()}")
+                        if (responseUsuario.isSuccessful) {
+                            usuarioLogueado = responseUsuario.body()
+                            println("✅ USUARIO COMPLETO: ${usuarioLogueado}")
+                        } else {
+                            // Si falla la segunda llamada, guardamos lo poco que tenemos del login
+                            usuarioLogueado = Usuario(
+                                id = idUsuario,
+                                nombre = body?.nombre ?: "",
+                                emailInstitucional = correo,
+                                rol = body?.rol ?: "",
+                                matricula = "",
+                                carrera = "",
+                                telefono = "",
+                                contrasena = ""
+                            )
+                            println("⚠️ No se pudo cargar usuario completo, usando datos básicos")
+                        }
+                    } catch (e: Exception) {
+                        // Si hay error de red en la segunda llamada, usamos datos básicos
+                        usuarioLogueado = Usuario(
+                            id = idUsuario,
+                            nombre = body?.nombre ?: "",
+                            emailInstitucional = correo,
+                            rol = body?.rol ?: "",
+                            matricula = "",
+                            carrera = "",
+                            telefono = "",
+                            contrasena = ""
+                        )
+                        println("⚠️ Error cargando usuario completo: ${e.message}")
+                    }
+
                     onSuccess()
+                    println("🔍 ID USUARIO PARA BUSCAR: $idUsuario")
+                    println("🔍 USUARIO LOGUEADO ACTUAL: $usuarioLogueado")
                 } else {
                     val codigoError = response.code()
                     val mensajeBackend = response.errorBody()?.string() ?: "Sin mensaje"
@@ -90,5 +120,14 @@ class AuthViewModel : ViewModel() {
                 isLoading = false
             }
         }
+    }
+
+    // ✅ Actualiza el usuario logueado localmente después de editar perfil
+    // Para que los cambios se vean inmediatamente en PerfilScreen sin re-login
+    fun actualizarUsuarioLocal(nuevoTelefono: String, nuevaCarrera: String) {
+        usuarioLogueado = usuarioLogueado?.copy(
+            telefono = nuevoTelefono,
+            carrera = nuevaCarrera
+        )
     }
 }

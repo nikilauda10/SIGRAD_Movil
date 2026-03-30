@@ -13,5 +13,6 @@ data class AreaDeportiva(
     // Este campo NO viene del JSON, lo calculamos nosotros en el ViewModel
     val idUsuarioReserva: Long? = null,
     // Guardamos el ID de la reserva para poder cancelarla o editarla
-    val idReservaActiva: Long? = null
+    val idReservaActiva: Long? = null,
+    val reservasActivas: List<ReservaResponse> = emptyList()
 )

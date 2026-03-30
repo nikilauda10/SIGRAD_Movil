@@ -11,15 +11,10 @@ import kotlinx.coroutines.launch
 
 class UsuarioViewModel : ViewModel() {
 
-    // Estado para saber si estamos guardando cambios en el servidor
     var estaActualizando by mutableStateOf(false)
     var mensajeError by mutableStateOf<String?>(null)
     var exitoActualizacion by mutableStateOf(false)
 
-    /**
-     * Función para actualizar los datos editables.
-     * Recibe el objeto usuario completo pero solo con los campos teléfono y carrera cambiados.
-     */
     fun actualizarDatosPerfil(usuarioActualizado: Usuario, onResultado: (Boolean) -> Unit) {
         viewModelScope.launch {
             estaActualizando = true
@@ -27,24 +22,25 @@ class UsuarioViewModel : ViewModel() {
             exitoActualizacion = false
 
             try {
-                // Aquí llamamos al endpoint de tu amigo.
-                // Por ahora, como no está listo, simulamos una respuesta exitosa.
-                // val response = RetrofitClient.apiService.actualizarUsuario(usuarioActualizado)
+                val id = usuarioActualizado.id
+                if (id == null) {
+                    mensajeError = "No se pudo identificar al usuario."
+                    onResultado(false)
+                    return@launch
+                }
 
-                // --- SIMULACIÓN DE ESPERA DEL BACKEND ---
-                kotlinx.coroutines.delay(1000)
-                val esExitoso = true // Cambiar a response.isSuccessful cuando esté la API
-                // ---------------------------------------
+                val response = RetrofitClient.apiService.actualizarUsuario(id, usuarioActualizado)
 
-                if (esExitoso) {
+                if (response.isSuccessful) {
                     exitoActualizacion = true
                     onResultado(true)
                 } else {
-                    mensajeError = "Error al actualizar los datos en el servidor."
+                    val error = response.errorBody()?.string() ?: "Error desconocido"
+                    mensajeError = "Error al actualizar: $error"
                     onResultado(false)
                 }
             } catch (e: Exception) {
-                mensajeError = "Error de red: No se pudo conectar con el servidor."
+                mensajeError = "Error de conexión: ${e.message}"
                 onResultado(false)
             } finally {
                 estaActualizando = false
