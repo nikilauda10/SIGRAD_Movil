@@ -1,6 +1,7 @@
 package com.example.integrador_sigrad.network
 
 import com.example.integrador_sigrad.model.AreaDeportiva
+import com.example.integrador_sigrad.model.Reserva
 import com.example.integrador_sigrad.model.ReservaRequest
 import com.example.integrador_sigrad.model.ReservaResponse
 import com.example.integrador_sigrad.model.Usuario
@@ -73,4 +74,9 @@ interface ApiService {
 
     @GET("api/usuarios/{id}")
     suspend fun obtenerUsuarioPorId(@Path("id") id: Long): Response<Usuario>
+
+    @GET("api/reservas/usuario/{idUsuario}")
+    suspend fun listarReservasPorUsuario(
+        @Path("idUsuario") idUsuario: Long
+    ): List<Reserva>
 }

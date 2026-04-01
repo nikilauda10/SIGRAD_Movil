@@ -13,6 +13,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.integrador_sigrad.ui.screens.*
 import com.example.integrador_sigrad.viewmodel.AreaDeportivaViewModel
 import com.example.integrador_sigrad.viewmodel.AuthViewModel
+import com.example.integrador_sigrad.viewmodel.HistorialViewModel
 import com.example.integrador_sigrad.viewmodel.UsuarioViewModel
 import com.example.integrador_sigrad.viewmodel.ReservaViewModel
 
@@ -173,7 +174,21 @@ fun AppNavGraph(
 
         // --- RUTA 3: HISTORIAL ---
         composable(RutasNavegacion.HISTORIAL) {
-            HistorialScreen(onBack = { navController.popBackStack() })
+            // 1. Obtenemos el ID del usuario logueado (importante para filtrar sus reservas)
+            // Ajusta "usuarioLogueado" según como lo tengas en tu AuthViewModel
+            val idUsuario = authViewModel.usuarioLogueado?.id ?: 0L
+
+            // 2. Obtenemos el ViewModel del historial
+            val historialViewModel: HistorialViewModel = viewModel()
+
+            // 3. Llamamos a la pantalla pasando los datos necesarios
+            HistorialScreen(
+                viewModel = historialViewModel,
+                idUsuario = idUsuario,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
         }
 
         // --- RUTA 4: PERFIL ---
@@ -184,7 +199,8 @@ fun AppNavGraph(
                 correoUsuario = usuario?.emailInstitucional ?: "usuario@utez.edu.mx",
                 onEditarClick = { navController.navigate(RutasNavegacion.EDITAR_PERFIL) },
                 onCerrarSesionClick = {
-                    navController.navigate(RutasNavegacion.INICIO) {
+                    authViewModel.usuarioLogueado = null
+                    navController.navigate(RutasNavegacion.LOGIN) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
