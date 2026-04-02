@@ -65,7 +65,13 @@ class MainActivity : ComponentActivity() {
 
                         composable("main") {
                             // ✅ Pasamos el mismo authViewModel a MainScreen
-                            MainScreen(authViewModel = authViewModel)
+                            MainScreen(authViewModel = authViewModel,
+                                onCerrarSesion = {
+                                    rootNavController.navigate("login") {
+                                        popUpTo(0) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                })
                         }
                     }
                 }

@@ -20,7 +20,8 @@ import com.example.integrador_sigrad.navigation.RutasNavegacion
 import com.example.integrador_sigrad.viewmodel.AuthViewModel
 
 @Composable
-fun MainScreen(authViewModel: AuthViewModel) { // ✅ Recibe el authViewModel
+fun MainScreen(authViewModel: AuthViewModel,
+               onCerrarSesion: () -> Unit ) { // ✅ Recibe el authViewModel
     val navController = rememberNavController()
 
     Scaffold(
@@ -29,7 +30,8 @@ fun MainScreen(authViewModel: AuthViewModel) { // ✅ Recibe el authViewModel
         AppNavGraph(
             navController = navController,
             modifier = Modifier.padding(paddingValues),
-            authViewModel = authViewModel // ✅ Lo pasa al NavGraph
+            authViewModel = authViewModel, // ✅ Lo pasa al NavGraph
+            onCerrarSesion = onCerrarSesion
         )
     }
 }

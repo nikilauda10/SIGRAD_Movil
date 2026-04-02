@@ -31,7 +31,34 @@ fun HistorialScreen(
     val estaCargando by viewModel.estaCargando.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // EFECTO DE AUTO-REFRESCO: Se dispara cada vez que la pantalla vuelve a primer plano
+    // ✅ Estados para los filtros
+    var filtroEstado by remember { mutableStateOf("Todos") }
+    var filtroFecha by remember { mutableStateOf("Más reciente") }
+    var expandirEstado by remember { mutableStateOf(false) }
+    var expandirFecha by remember { mutableStateOf(false) }
+
+    val opcionesEstado = listOf("Todos", "CONFIRMADA", "CANCELADA")
+    val opcionesFecha = listOf("Más reciente", "Más antigua")
+
+    // ✅ Aplicamos los filtros sobre la lista completa
+    val reservasFiltradas = remember(reservas, filtroEstado, filtroFecha) {
+        var lista = reservas
+
+        // Filtro por estado
+        if (filtroEstado != "Todos") {
+            lista = lista.filter { it.estado.uppercase() == filtroEstado }
+        }
+
+        // Filtro por fecha
+        lista = when (filtroFecha) {
+            "Más reciente" -> lista.sortedByDescending { it.fecha }
+            "Más antigua"  -> lista.sortedBy { it.fecha }
+            else -> lista
+        }
+
+        lista
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -49,39 +76,125 @@ fun HistorialScreen(
             .padding(horizontal = 24.dp)
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp, bottom = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(text = "Historial", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
 
+        // ✅ DROPDOWNS DE FILTRO
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FiltroChip(texto = "Fecha")
-            FiltroChip(texto = "Estado")
+            // Dropdown Fecha
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { expandirFecha = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(filtroFecha, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+                DropdownMenu(
+                    expanded = expandirFecha,
+                    onDismissRequest = { expandirFecha = false }
+                ) {
+                    opcionesFecha.forEach { opcion ->
+                        DropdownMenuItem(
+                            text = { Text(opcion) },
+                            onClick = {
+                                filtroFecha = opcion
+                                expandirFecha = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Dropdown Estado
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { expandirEstado = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(filtroEstado, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+                DropdownMenu(
+                    expanded = expandirEstado,
+                    onDismissRequest = { expandirEstado = false }
+                ) {
+                    opcionesEstado.forEach { opcion ->
+                        DropdownMenuItem(
+                            text = {
+                                val color = when (opcion) {
+                                    "CONFIRMADA" -> Color(0xFF5CB85C)
+                                    "CANCELADA" -> Color(0xFFF44336)
+                                    else -> Color.Black
+                                }
+                                Text(opcion, color = color, fontWeight = FontWeight.SemiBold)
+                            },
+                            onClick = {
+                                filtroEstado = opcion
+                                expandirEstado = false
+                            }
+                        )
+                    }
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(text = "Tus Reservas", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (estaCargando) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF5CB85C))
+        // ✅ Contador de resultados
+        Text(
+            text = "Tus Reservas (${reservasFiltradas.size})",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        when {
+            estaCargando -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF5CB85C))
+                }
             }
-        } else if (reservas.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = "No hay registros disponibles", color = Color.Gray)
+            reservasFiltradas.isEmpty() && reservas.isNotEmpty() -> {
+                // Hay reservas pero el filtro no muestra ninguna
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No hay reservas con estado \"$filtroEstado\"",
+                            color = Color.Gray,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = { filtroEstado = "Todos" }) {
+                            Text("Ver todas", color = Color(0xFF5CB85C))
+                        }
+                    }
+                }
             }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(reservas) { reserva ->
-                    RegistroItemReal(reserva)
+            reservas.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "No hay reservaciones realizadas", color = Color.Gray)
+                }
+            }
+            else -> {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(reservasFiltradas) { reserva ->
+                        RegistroItemReal(reserva)
+                    }
                 }
             }
         }
@@ -91,9 +204,9 @@ fun HistorialScreen(
 @Composable
 fun RegistroItemReal(reserva: Reserva) {
     val colorEstado = when (reserva.estado.uppercase()) {
-        "CONFIRMADA" -> Color(0xFF5CB85C) // Verde
-        "CANCELADA" -> Color(0xFFF44336)  // Rojo
-        "ACTUALIZADA" -> Color(0xFFFFA000) // Naranja
+        "CONFIRMADA" -> Color(0xFF5CB85C)
+        "CANCELADA"  -> Color(0xFFF44336)
+        "ACTUALIZADA" -> Color(0xFFFFA000)
         else -> Color.Gray
     }
 
@@ -104,14 +217,35 @@ fun RegistroItemReal(reserva: Reserva) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = reserva.area.nombre, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(text = "Horario: ${reserva.horaInicio} - ${reserva.horaFin}", fontSize = 13.sp, color = Color.DarkGray)
-                Text(text = "Fecha: ${reserva.fecha}", fontSize = 13.sp, color = Color.Gray)
+                Text(
+                    text = reserva.area.nombre,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "⏰ ${reserva.horaInicio} - ${reserva.horaFin}",
+                    fontSize = 13.sp,
+                    color = Color.DarkGray
+                )
+                Text(
+                    text = "📅 ${reserva.fecha}",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+                if (!reserva.descripcion.isNullOrBlank()) {
+                    Text(
+                        text = "📝 ${reserva.descripcion}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
             }
 
             Surface(
@@ -127,19 +261,5 @@ fun RegistroItemReal(reserva: Reserva) {
                 )
             }
         }
-    }
-}
-
-@Composable
-fun FiltroChip(texto: String) {
-    Row(
-        modifier = Modifier
-            .background(Color(0xFFF3F4F6), shape = RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = texto, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Spacer(modifier = Modifier.width(4.dp))
-        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
     }
 }

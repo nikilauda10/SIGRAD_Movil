@@ -3,6 +3,8 @@ package com.example.integrador_sigrad.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.integrador_sigrad.model.AreaDeportiva
+import com.example.integrador_sigrad.model.AreaEnReserva
+import com.example.integrador_sigrad.model.Reserva
 import com.example.integrador_sigrad.model.ReservaResponse
 import com.example.integrador_sigrad.network.RetrofitClient
 import kotlinx.coroutines.async
@@ -25,8 +27,8 @@ class AreaDeportivaViewModel : ViewModel() {
     private val _cancelacionExitosa = MutableStateFlow(false)
     val cancelacionExitosa: StateFlow<Boolean> = _cancelacionExitosa.asStateFlow()
 
-    private val _reservasUsuario = MutableStateFlow<List<ReservaResponse>>(emptyList())
-    val reservasUsuario: StateFlow<List<ReservaResponse>> = _reservasUsuario.asStateFlow()
+    private val _reservasUsuario = MutableStateFlow<List<Reserva>>(emptyList())
+    val reservasUsuario: StateFlow<List<Reserva>> = _reservasUsuario.asStateFlow()
 
     // Guardamos el idUsuario para reusar en recargas
     private var idUsuarioActual: Long = 0L
@@ -61,14 +63,25 @@ class AreaDeportivaViewModel : ViewModel() {
                     responseReservas.body()?.filter { it.estado == "CONFIRMADA" } ?: emptyList()
                 } else emptyList()
 
-                _reservasUsuario.value = reservasConfirmadas
+                _reservasUsuario.value =  reservasConfirmadas
 
                 // ✅ Guardamos TODAS las reservas de cada área, no solo la primera
                 _areas.value = areasRaw.map { area ->
-                    val reservasDeEstaArea = reservasConfirmadas.filter { it.area?.id == area.id }
+                    val reservasDeEstaArea = reservasConfirmadas.filter { it.area.id == area.id }
                     area.copy(
                         idUsuarioReserva = if (reservasDeEstaArea.isNotEmpty()) idUsuario else null,
-                        reservasActivas = reservasDeEstaArea
+                        reservasActivas = reservasDeEstaArea.map { r ->
+                            // Convertimos Reserva a ReservaResponse para mantener compatibilidad
+                            ReservaResponse(
+                                id = r.id,
+                                estado = r.estado,
+                                fecha = r.fecha,
+                                horaInicio = r.horaInicio,
+                                horaFin = r.horaFin,
+                                descripcion = r.descripcion,
+                                area = AreaEnReserva(id = r.area.id)
+                            )
+                        }
                     )
                 }
 

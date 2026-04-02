@@ -130,4 +130,10 @@ class AuthViewModel : ViewModel() {
             carrera = nuevaCarrera
         )
     }
+
+    fun cerrarSesion() {
+        usuarioLogueado = null
+        errorMessage = null
+        mostrarDialogoExito = false
+    }
 }

@@ -49,7 +49,7 @@ interface ApiService {
 
     // Obtener reservas de un usuario (para saber el ID de reserva de cada área)
     @GET("api/reservas/usuario/{idUsuario}")
-    suspend fun obtenerReservasPorUsuario(@Path("idUsuario") idUsuario: Long): Response<List<ReservaResponse>>
+    suspend fun obtenerReservasPorUsuario(@Path("idUsuario") idUsuario: Long): Response<List<Reserva>>
 
     @PUT("api/reservas/actualizar/{id}")
     suspend fun actualizarReserva(
@@ -75,8 +75,5 @@ interface ApiService {
     @GET("api/usuarios/{id}")
     suspend fun obtenerUsuarioPorId(@Path("id") id: Long): Response<Usuario>
 
-    @GET("api/reservas/usuario/{idUsuario}")
-    suspend fun listarReservasPorUsuario(
-        @Path("idUsuario") idUsuario: Long
-    ): List<Reserva>
+
 }

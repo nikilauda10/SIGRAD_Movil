@@ -22,7 +22,8 @@ fun AppNavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     startDestination: String = RutasNavegacion.INICIO,
-    authViewModel: AuthViewModel
+    authViewModel: AuthViewModel,
+    onCerrarSesion: () -> Unit
 ) {
     val areasViewModel: AreaDeportivaViewModel = viewModel()
     val usuarioViewModel: UsuarioViewModel = viewModel()
@@ -35,7 +36,25 @@ fun AppNavGraph(
     ) {
         // --- RUTA 1: INICIO ---
         composable(RutasNavegacion.INICIO) {
+            val idUsuario = authViewModel.usuarioLogueado?.id ?: 0L
+            val reservasUsuario by areasViewModel.reservasUsuario.collectAsState()
+
+            // ✅ Carga los datos apenas entra al inicio
+            LaunchedEffect(idUsuario) {
+                if (idUsuario > 0L) {
+                    areasViewModel.cargarTodo(idUsuario)
+                }
+            }
+
+            val ultimaReserva = reservasUsuario
+                .sortedByDescending { it.fecha }
+                .firstOrNull()
+
             InicioScreen(
+                nombreUsuario = authViewModel.usuarioLogueado?.nombre ?: "",
+                ultimaReserva = ultimaReserva?.let {
+                    "${it.area.nombre} · ${it.fecha}"
+                } ?: "Sin reservas aún",
                 onIrAAreas = {
                     navController.navigate(RutasNavegacion.AREAS) {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -199,10 +218,8 @@ fun AppNavGraph(
                 correoUsuario = usuario?.emailInstitucional ?: "usuario@utez.edu.mx",
                 onEditarClick = { navController.navigate(RutasNavegacion.EDITAR_PERFIL) },
                 onCerrarSesionClick = {
-                    authViewModel.usuarioLogueado = null
-                    navController.navigate(RutasNavegacion.LOGIN) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    authViewModel.cerrarSesion() // ✅ Usa la función del ViewModel
+                    onCerrarSesion()             // ✅ Usa el callback de MainActivity
                 }
             )
         }

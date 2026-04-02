@@ -22,10 +22,12 @@ class HistorialViewModel : ViewModel() {
         viewModelScope.launch {
             _estaCargando.value = true
             try {
-                // AQUÍ LLAMARÍAS A TU API REAL:
-                val response = RetrofitClient.apiService.listarReservasPorUsuario(idUsuario)
-                _reservas.value = response
-
+                val response = RetrofitClient.apiService.obtenerReservasPorUsuario(idUsuario)
+                if (response.isSuccessful) {
+                    _reservas.value = response.body() ?: emptyList()
+                } else {
+                    _reservas.value = emptyList()
+                }
             } catch (e: Exception) {
                 _reservas.value = emptyList()
             } finally {
