@@ -226,13 +226,11 @@ fun AppNavGraph(
 
         // --- RUTA 4.1: EDITAR PERFIL ---
         composable(RutasNavegacion.EDITAR_PERFIL) {
-            // ✅ Leemos el estado directamente aquí para que Compose lo observe
             val usuario = authViewModel.usuarioLogueado
-
-            println("🔍 USUARIO EN EDITAR PERFIL: $usuario")
 
             EditarPerfilScreen(
                 usuarioActual = usuario,
+                listaCarreras = authViewModel.listaCarreras, // 👇 ¡SOLO AGREGA ESTA LÍNEA!
                 viewModel = usuarioViewModel,
                 onBack = { navController.popBackStack() },
                 onGuardar = { nuevoTelefono, nuevaCarrera ->

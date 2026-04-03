@@ -23,9 +23,10 @@ import com.example.integrador_sigrad.viewmodel.UsuarioViewModel
 @Composable
 fun EditarPerfilScreen(
     usuarioActual: Usuario?,
+    listaCarreras: List<String>, // ✅ Agregado para el dropdown
     onBack: () -> Unit,
     onGuardar: (String, String) -> Unit,
-    viewModel: UsuarioViewModel  // ✅ Agregamos el ViewModel para mostrar loading/error
+    viewModel: UsuarioViewModel
 ) {
 
     var telefono by remember(usuarioActual) { mutableStateOf(usuarioActual?.telefono ?: "") }
@@ -90,39 +91,21 @@ fun EditarPerfilScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // ── CAMPOS BLOQUEADOS ──────────────────────────────
-            CampoPerfil(
-                label = "Nombre",
-                valor = usuarioActual?.nombre ?: "",
-                editable = false
-            ) {}
-            CampoPerfil(
-                label = "Matrícula",
-                valor = usuarioActual?.matricula ?: "",
-                editable = false
-            ) {}
-            CampoPerfil(
-                label = "Correo Institucional",
-                valor = usuarioActual?.emailInstitucional ?: "",
-                editable = false
-            ) {}
-            CampoPerfil(
-                label = "Rol",
-                valor = usuarioActual?.rol ?: "",
-                editable = false
-            ) {}
+            CampoPerfil(label = "Nombre", valor = usuarioActual?.nombre ?: "", editable = false) {}
+            CampoPerfil(label = "Matrícula", valor = usuarioActual?.matricula ?: "", editable = false) {}
+            CampoPerfil(label = "Correo Institucional", valor = usuarioActual?.emailInstitucional ?: "", editable = false) {}
+            CampoPerfil(label = "Rol", valor = usuarioActual?.rol ?: "", editable = false) {}
 
             // ── CAMPOS EDITABLES ───────────────────────────────
-            CampoPerfil(
-                label = "Teléfono",
-                valor = telefono,
-                editable = true
-            ) { telefono = it }
+            CampoPerfil(label = "Teléfono", valor = telefono, editable = true) { telefono = it }
 
-            CampoPerfil(
+            // 👇 AHORA ES UN MENÚ DESPLEGABLE CON LAS CARRERAS DEL BACKEND 👇
+            CampoPerfilDropdown(
                 label = "Carrera",
-                valor = carrera,
-                editable = true
-            ) { carrera = it }
+                opciones = listaCarreras,
+                seleccionActual = carrera,
+                onSeleccionCambiada = { carrera = it }
+            )
 
             // ── ERROR ──────────────────────────────────────────
             if (viewModel.mensajeError != null) {
@@ -140,27 +123,22 @@ fun EditarPerfilScreen(
             Button(
                 onClick = { onGuardar(telefono, carrera) },
                 enabled = !viewModel.estaActualizando,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = colorBotonOscuro)
             ) {
                 if (viewModel.estaActualizando) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 } else {
                     Text("Guardar Cambios", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
+// COMPONENTE NORMAL
 @Composable
 fun CampoPerfil(
     label: String,
@@ -169,12 +147,7 @@ fun CampoPerfil(
     onValueChange: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-        Text(
-            text = label,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        Text(text = label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
         OutlinedTextField(
             value = valor,
             onValueChange = onValueChange,
@@ -182,14 +155,59 @@ fun CampoPerfil(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                // Campos editables — borde normal
                 focusedBorderColor = Color(0xFF344356),
                 unfocusedBorderColor = Color.LightGray,
-                // Campos bloqueados — fondo gris sin borde
                 disabledTextColor = Color.DarkGray,
                 disabledContainerColor = Color(0xFFF3F4F6),
                 disabledBorderColor = Color.Transparent
             )
         )
+    }
+}
+
+// NUEVO COMPONENTE DESPLEGABLE
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CampoPerfilDropdown(
+    label: String,
+    opciones: List<String>,
+    seleccionActual: String,
+    onSeleccionCambiada: (String) -> Unit
+) {
+    var expandido by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+        Text(text = label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
+        ExposedDropdownMenuBox(
+            expanded = expandido,
+            onExpandedChange = { expandido = !expandido }
+        ) {
+            OutlinedTextField(
+                value = seleccionActual,
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF344356),
+                    unfocusedBorderColor = Color.LightGray
+                ),
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido) }
+            )
+            ExposedDropdownMenu(
+                expanded = expandido,
+                onDismissRequest = { expandido = false },
+                modifier = Modifier.background(Color.White)
+            ) {
+                opciones.forEach { opcion ->
+                    DropdownMenuItem(
+                        text = { Text(opcion, color = Color.DarkGray, fontSize = 14.sp) },
+                        onClick = {
+                            onSeleccionCambiada(opcion)
+                            expandido = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }

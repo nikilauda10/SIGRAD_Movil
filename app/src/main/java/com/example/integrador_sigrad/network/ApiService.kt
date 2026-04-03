@@ -5,6 +5,9 @@ import com.example.integrador_sigrad.model.Reserva
 import com.example.integrador_sigrad.model.ReservaRequest
 import com.example.integrador_sigrad.model.ReservaResponse
 import com.example.integrador_sigrad.model.Usuario
+import com.example.integrador_sigrad.model.RolResponse
+import com.example.integrador_sigrad.model.CarreraResponse
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -15,13 +18,17 @@ import retrofit2.http.Path
 
 
 data class LoginRequest(val correo: String, val password: String)
-data class AuthResponse(
+data class AuthResponse (
     val status: String? = null,
     val message: String? = null,
     val id: Long? = null,
     val nombre: String? = null,
     val rol: String? = null,
-    val emailInstitucional: String? = null
+    @SerializedName("emailInstitucional")
+    val emailInstitucional: String? = null,
+    val matricula: String? = null, // <- Agregado
+    val telefono: String? = null,  // <- Agregado
+    val carrera: String? = null    // <- Agregado
 )
 
 interface ApiService {
@@ -75,5 +82,10 @@ interface ApiService {
     @GET("api/usuarios/{id}")
     suspend fun obtenerUsuarioPorId(@Path("id") id: Long): Response<Usuario>
 
+    @GET("api/roles")
+    suspend fun obtenerRoles(): Response<List<RolResponse>>
+
+    @GET("api/carreras/listar")
+    suspend fun obtenerCarreras(): Response<List<CarreraResponse>>
 
 }
