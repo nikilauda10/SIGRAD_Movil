@@ -1,8 +1,5 @@
 package com.example.integrador_sigrad.ui.screens
 
-import android.graphics.BitmapFactory
-import android.util.Base64
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,13 +9,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage // 👈 Usamos esto para la carga perezosa (Lazy Loading)
 import com.example.integrador_sigrad.model.AreaDeportiva
 import com.example.integrador_sigrad.model.ReservaResponse
 import com.example.integrador_sigrad.viewmodel.AreaDeportivaViewModel
@@ -271,28 +267,28 @@ fun AreaCard(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // IMAGEN
-            var bitmap: android.graphics.Bitmap? = null
-            if (!area.imagen.isNullOrEmpty() && area.imagen.length > 100) {
-                try {
-                    val base64String = area.imagen.substringAfter(",")
-                    val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
-                    bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                } catch (e: Exception) {
-                    bitmap = null
-                }
-            }
 
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Foto de ${area.nombre}",
-                    modifier = Modifier.fillMaxWidth().height(150.dp),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                ImagenPorDefecto(nombreCancha = area.nombre)
-            }
+            // 🌐 URL optimizada para cargar la imagen en segundo plano
+            // ⚠️ IMPORTANTE: Pon la misma IP que tienes en tu RetrofitClient
+            val imageUrl = "http://192.168.1.88:8080/api/areas/${area.id}/imagen"
+
+            // 📸 LA MAGIA DEL LAZY LOADING EN LA TARJETA 📸
+            SubcomposeAsyncImage(
+                model = imageUrl,
+                contentDescription = "Foto de ${area.nombre}",
+                modifier = Modifier.fillMaxWidth().height(150.dp),
+                contentScale = ContentScale.Crop,
+                loading = {
+                    // Círculo de carga mientras descarga la imagen
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.LightGray)
+                    }
+                },
+                error = {
+                    // Si falla (o el área no tiene imagen subida), muestra el área por defecto
+                    ImagenPorDefecto(nombreCancha = area.nombre)
+                }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 
