@@ -84,10 +84,6 @@ fun LoginScreen(
             Text(text = "¿No tienes una cuenta? \nRegístrate", color = Color.Gray, textAlign = TextAlign.Center)
         }
 
-        TextButton(onClick = onNavigateToRecuperar) {
-            Text(text = "Restablecer Contraseña", color = Color.Gray)
-        }
-
         Spacer(modifier = Modifier.weight(1f))
     }
 }

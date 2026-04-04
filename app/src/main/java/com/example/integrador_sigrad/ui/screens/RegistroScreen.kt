@@ -1,9 +1,9 @@
 package com.example.integrador_sigrad.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,25 +33,23 @@ fun RegistroScreen(
     var matricula by remember { mutableStateOf("") }
     var correo by remember { mutableStateOf("") }
     var carrera by remember { mutableStateOf("") }
-    var rol by remember { mutableStateOf("Alumno") }
+    var rol by remember { mutableStateOf("") } // Empieza vacío para forzar a elegir
     var password by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
-
-    val opcionesRol = listOf("Alumno", "Docente")
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Registro", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Atrás") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                    }
                 }
             )
         }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
-
-            // Tu formulario normal
             Column(
                 modifier = Modifier
                     .padding(horizontal = 24.dp)
@@ -61,22 +58,65 @@ fun RegistroScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
-                CustomTextField(label = "Nombre:*", placeholder = "Ej. Juan Pérez", value = nombre, onValueChange = { nombre = it })
-                CustomTextField(label = "Matrícula:*", placeholder = "Ej. 123456", value = matricula, onValueChange = { matricula = it })
-                CustomTextField(label = "Correo Institucional:*", placeholder = "correo@escuela.edu.mx", value = correo, onValueChange = { correo = it })
-                CustomTextField(label = "Teléfono:*", placeholder = "Ej. 5512345678", value = telefono, onValueChange = { telefono = it })
-                CustomTextField(label = "Carrera:*", placeholder = "Ej. Sistemas", value = carrera, onValueChange = { carrera = it })
 
+                CustomTextField(
+                    label = "Nombre Completo *",
+                    placeholder = "Ej. Jorge Moranchel",
+                    value = nombre,
+                    onValueChange = { nombre = it }
+                )
+
+                // ROL DINÁMICO DESDE EL BACKEND
                 CustomDropdownMenu(
-                    label = "Rol:*",
-                    opciones = opcionesRol,
+                    label = "Rol *",
+                    opciones = viewModel.listaRoles,
                     seleccionActual = rol,
                     onSeleccionCambiada = { rol = it }
                 )
 
+                // ETIQUETA DINÁMICA DEPENDIENDO DEL ROL
+                val esEstudiante = rol.uppercase() == "ESTUDIANTE" || rol.uppercase() == "ALUMNO"
+                val etiquetaIdentificacion = if (esEstudiante) "Matrícula *" else "Código de Trabajador *"
+                val placeholderIdentificacion = if (esEstudiante) "Ej. 20243DS051" else "Ej. 12345"
+
+                // FORZAMOS MATRÍCULA A MAYÚSCULAS
+                CustomTextField(
+                    label = etiquetaIdentificacion,
+                    placeholder = placeholderIdentificacion,
+                    value = matricula,
+                    onValueChange = { matricula = it.uppercase() }
+                )
+
+                // FORZAMOS CORREO A MINÚSCULAS
+                CustomTextField(
+                    label = "Correo Institucional *",
+                    placeholder = "ejemplo@utez.edu.mx",
+                    value = correo,
+                    onValueChange = { correo = it.lowercase() }
+                )
+
+                // FORZAMOS TELÉFONO SOLO A NÚMEROS Y 10 DÍGITOS
+                CustomTextField(
+                    label = "Teléfono *",
+                    placeholder = "10 dígitos numéricos",
+                    value = telefono,
+                    onValueChange = { newValue ->
+                        val soloNumeros = newValue.filter { it.isDigit() }
+                        if (soloNumeros.length <= 10) telefono = soloNumeros
+                    }
+                )
+
+                // CARRERAS DINÁMICAS DESDE EL BACKEND
+                CustomDropdownMenu(
+                    label = "Carrera *",
+                    opciones = viewModel.listaCarreras,
+                    seleccionActual = carrera,
+                    onSeleccionCambiada = { carrera = it }
+                )
+
                 CustomPasswordField(value = password, onValueChange = { password = it })
 
-                // Mensaje de error dinámico
+                // Mensaje de error dinámico y limpio
                 if (viewModel.errorMessage != null) {
                     Text(
                         text = viewModel.errorMessage!!,
@@ -94,13 +134,12 @@ fun RegistroScreen(
                         val nuevoUsuario = Usuario(
                             nombre = nombre,
                             matricula = matricula,
-                            emailInstitucional = correo,
+                            emailInstitucional = correo, // <--- LA LETRA I MAYÚSCULA CORREGIDA
                             carrera = carrera,
                             rol = rol,
                             contrasena = password,
                             telefono = telefono
                         )
-                        // 👇 Ya NO le pasamos el onSuccess, porque ahora lo hace la tarjeta emergente
                         viewModel.registrar(nuevoUsuario)
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -115,23 +154,23 @@ fun RegistroScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-            } // <-- Aquí termina el Column del formulario
+            }
 
-            // 👇 AQUÍ ESTÁ LA TARJETA EMERGENTE (ALERT DIALOG)
+            // AQUÍ ESTÁ LA TARJETA EMERGENTE (ALERT DIALOG)
             if (viewModel.mostrarDialogoExito) {
                 AlertDialog(
                     onDismissRequest = { /* Se deja vacío para que no puedan cerrarla picando fuera */ },
                     title = {
-                        Text(text = "¡Registro Exitoso! 🎉", fontWeight = FontWeight.Bold)
+                        Text(text = "¡Registro Exitoso!", fontWeight = FontWeight.Bold)
                     },
                     text = {
-                        Text("Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión en la aplicación.")
+                        Text("Tu cuenta ha sido creada correctamente. Ahora puedes revisar tu correo para activarla e iniciar sesión.")
                     },
                     confirmButton = {
                         Button(
                             onClick = {
-                                viewModel.mostrarDialogoExito = false // 1. Apagamos la alerta
-                                onBack() // 2. Viajamos al Login 🚀
+                                viewModel.mostrarDialogoExito = false // Apagamos la alerta
+                                onBack() // Viajamos al Login
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = ColorBotonOscuro)
                         ) {
@@ -140,8 +179,7 @@ fun RegistroScreen(
                     }
                 )
             }
-
-        } // <-- Aquí termina el Box
+        }
     }
 }
 
@@ -154,10 +192,9 @@ fun CustomDropdownMenu(
     onSeleccionCambiada: (String) -> Unit
 ) {
     var expandido by remember { mutableStateOf(false) }
-
     ExposedDropdownMenuBox(
         expanded = expandido,
-        onExpandedChange = { expandido = !expandido },
+        onExpandedChange = { expandido = !expandido }
     ) {
         OutlinedTextField(
             value = seleccionActual,
@@ -168,7 +205,7 @@ fun CustomDropdownMenu(
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent
             ),
-                    readOnly = true,
+            readOnly = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido) },
             modifier = Modifier
@@ -183,11 +220,11 @@ fun CustomDropdownMenu(
         ) {
             opciones.forEach { opcion ->
                 DropdownMenuItem(
-                    text = { Text(opcion,color = Color.Gray, fontSize = 14.sp) },
+                    text = { Text(opcion, color = Color.Gray, fontSize = 14.sp) },
                     onClick = {
                         onSeleccionCambiada(opcion)
                         expandido = false
-                    },
+                    }
                 )
             }
         }
