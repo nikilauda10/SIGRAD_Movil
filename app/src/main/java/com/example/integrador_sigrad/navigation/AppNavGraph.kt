@@ -123,7 +123,7 @@ fun AppNavGraph(
             AreaDetalleScreen(
                 nombreCancha = nombreCancha,
                 descripcionCancha = textoUbicacion,
-                imagenUrl = canchaDeLaBD?.imagen,
+                idArea = canchaDeLaBD?.id ?: 0L, // 👈 SOLUCIÓN: Pasamos el ID del área en vez del Base64
                 onBack = { navController.popBackStack() },
                 onIrAlFormulario = {
                     navController.navigate(RutasNavegacion.formularioReserva(nombreCancha))
