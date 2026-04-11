@@ -1,12 +1,8 @@
 package com.example.integrador_sigrad.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -14,55 +10,65 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.integrador_sigrad.model.ReservaRequest
+import com.example.integrador_sigrad.model.ReservaResponse
 import com.example.integrador_sigrad.viewmodel.ReservaViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Genera bloques de 15 minutos entre horaInicio y horaFin
-// Ejemplo: "09:00" a "12:00" → ["09:00", "09:15", "09:30"...]
-fun generarBloques(horaApertura: String, horaCierre: String): List<String> {
-    val bloques = mutableListOf<String>()
-    try {
-        val partsInicio = horaApertura.split(":")
-        val partsFin = horaCierre.split(":")
-        var horaActual = partsInicio[0].toInt() * 60 + partsInicio[1].toInt()
-        val horaFinal = partsFin[0].toInt() * 60 + partsFin[1].toInt()
-
-        while (horaActual < horaFinal) {
-            val h = horaActual / 60
-            val m = horaActual % 60
-            bloques.add(String.format("%02d:%02d", h, m))
-            horaActual += 15
-        }
-    } catch (e: Exception) { }
-    return bloques
+// Función auxiliar para convertir "HH:mm" a minutos totales (facilita calcular choques)
+fun timeToMinutes(time: String): Int {
+    if (time.isEmpty()) return 0
+    val parts = time.split(":")
+    if (parts.size != 2) return 0
+    return try {
+        parts[0].toInt() * 60 + parts[1].toInt()
+    } catch (e: Exception) { 0 }
 }
 
-// Verifica si un bloque de 15 min está dentro de alguna reserva ocupada
-fun esBloqueOcupado(bloque: String, horasOcupadas: List<com.example.integrador_sigrad.model.ReservaResponse>): Boolean {
-    val partes = bloque.split(":")
-    val minBloque = partes[0].toInt() * 60 + partes[1].toInt()
+// Verifica si las horas seleccionadas chocan con reservas existentes
+fun hayChoqueDeHorarios(inicioNuevo: String, finNuevo: String, reservas: List<ReservaResponse>): Boolean {
+    if (inicioNuevo.isEmpty() || finNuevo.isEmpty()) return false
+    val minInicio = timeToMinutes(inicioNuevo)
+    val minFin = timeToMinutes(finNuevo)
 
-    return horasOcupadas.any { reserva ->
-        val inicio = reserva.horaInicio ?: return@any false
-        val fin = reserva.horaFin ?: return@any false
-        val partesInicio = inicio.split(":")
-        val partesFin = fin.split(":")
-        val minInicio = partesInicio[0].toInt() * 60 + partesInicio[1].toInt()
-        val minFin = partesFin[0].toInt() * 60 + partesFin[1].toInt()
-        minBloque >= minInicio && minBloque < minFin
+    return reservas.any { reserva ->
+        val minExistenteInicio = timeToMinutes(reserva.horaInicio ?: "00:00")
+        val minExistenteFin = timeToMinutes(reserva.horaFin ?: "00:00")
+        // Fórmula matemática de traslape: (InicioA < FinB) y (FinA > InicioB)
+        minInicio < minExistenteFin && minFin > minExistenteInicio
     }
+}
+
+// Componente Wrapper para el TimePicker de Material 3
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerDialog(
+    title: String = "Selecciona la hora",
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    AlertDialog(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(size = 12.dp)),
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+        text = { content() },
+        confirmButton = confirmButton,
+        dismissButton = dismissButton
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,8 +77,8 @@ fun ReservaScreen(
     nombreCancha: String,
     idArea: Long,
     idUsuario: Long,
-    horaApertura: String,  // ✅ Nuevo parámetro
-    horaCierre: String,    // ✅ Nuevo parámetro
+    horaApertura: String,
+    horaCierre: String,
     viewModel: ReservaViewModel,
     onBack: () -> Unit,
     onNavegarAreas: () -> Unit
@@ -84,16 +90,69 @@ fun ReservaScreen(
 
     val estaCargando by viewModel.estaCargando.collectAsState()
     val reservaExitosa by viewModel.reservaExitosa.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val errorServidor by viewModel.error.collectAsState()
     val horasOcupadas by viewModel.horasOcupadas.collectAsState()
-    val cargandoHoras by viewModel.cargandoHoras.collectAsState()
 
+    // Estados para los modales
     var mostrarCalendario by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
+    var mostrarRelojInicio by remember { mutableStateOf(false) }
+    var mostrarRelojFin by remember { mutableStateOf(false) }
 
-    // ✅ Generamos los bloques de 15 min según el horario del área
-    val bloques = remember(horaApertura, horaCierre) {
-        generarBloques(horaApertura, horaCierre)
+    // Calendario bloqueando domingos
+    val datePickerState = rememberDatePickerState(
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                calendar.timeInMillis = utcTimeMillis
+                return calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY
+            }
+        }
+    )
+
+    val timePickerStateInicio = rememberTimePickerState()
+    val timePickerStateFin = rememberTimePickerState()
+
+    // Lógica de validación en tiempo real del frontend
+    var mensajeErrorLocal by remember { mutableStateOf<String?>(null) }
+    var formularioValido by remember { mutableStateOf(false) }
+
+    // Cada que el usuario cambia una hora, verificamos todo
+    LaunchedEffect(horaEntrada, horaSalida, horasOcupadas) {
+        if (horaEntrada.isNotEmpty() && horaSalida.isNotEmpty()) {
+            val minApertura = timeToMinutes(horaApertura)
+            val minCierre = timeToMinutes(horaCierre)
+            val minInicio = timeToMinutes(horaEntrada)
+            val minFin = timeToMinutes(horaSalida)
+
+            when {
+                minInicio >= minFin -> {
+                    mensajeErrorLocal = "La hora de salida debe ser mayor a la de entrada."
+                    formularioValido = false
+                }
+                minInicio < minApertura || minFin > minCierre -> {
+                    mensajeErrorLocal = "Horario fuera de servicio ($horaApertura a $horaCierre)."
+                    formularioValido = false
+                }
+                hayChoqueDeHorarios(horaEntrada, horaSalida, horasOcupadas) -> {
+                    mensajeErrorLocal = "¡Este horario ya está reservado por alguien más!"
+                    formularioValido = false
+                }
+                else -> {
+                    mensajeErrorLocal = null
+                    formularioValido = true
+                }
+            }
+        } else {
+            mensajeErrorLocal = null
+            formularioValido = false
+        }
+    }
+
+    // Limpiamos el JSON crudo del servidor para que se vea estético
+    val errorServidorLimpio = errorServidor?.let { err ->
+        if (err.contains("\"mensaje\":\"")) {
+            err.substringAfter("\"mensaje\":\"").substringBefore("\"")
+        } else err
     }
 
     // Cuando cambia la fecha recargamos las horas ocupadas
@@ -107,9 +166,6 @@ fun ReservaScreen(
 
     val colorBotonOscuro = Color(0xFF344356)
     val colorVerdeExito = Color(0xFF5CB85C)
-    val colorVerde = Color(0xFF4CAF50)
-    val colorRojo = Color(0xFFF44336)
-    val colorSeleccionado = Color(0xFF2196F3)
 
     // DIALOG ÉXITO
     if (reservaExitosa) {
@@ -122,9 +178,7 @@ fun ReservaScreen(
                     Text("¡Reserva Exitosa!", fontWeight = FontWeight.Bold, color = colorVerdeExito)
                 }
             },
-            text = {
-                Text("Tu reserva para $nombreCancha se ha guardado correctamente.", fontSize = 16.sp)
-            },
+            text = { Text("Tu reserva para $nombreCancha se ha guardado correctamente.", fontSize = 16.sp) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -133,15 +187,13 @@ fun ReservaScreen(
                         onNavegarAreas()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = colorVerdeExito)
-                ) {
-                    Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("OK", color = Color.White) }
             },
             containerColor = Color.White
         )
     }
 
-    // CALENDARIO
+    // CALENDARIO DIALOG
     if (mostrarCalendario) {
         DatePickerDialog(
             onDismissRequest = { mostrarCalendario = false },
@@ -150,49 +202,63 @@ fun ReservaScreen(
                     mostrarCalendario = false
                     datePickerState.selectedDateMillis?.let { millis ->
                         val formateador = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        fecha = formateador.format(Date(millis + 86400000))
+                        fecha = formateador.format(Date(millis + 86400000)) // Ajuste de zona horaria
                     }
                 }) { Text("Aceptar", color = colorBotonOscuro) }
             },
             dismissButton = {
-                TextButton(onClick = { mostrarCalendario = false }) {
-                    Text("Cancelar", color = Color.Gray)
-                }
+                TextButton(onClick = { mostrarCalendario = false }) { Text("Cancelar", color = Color.Gray) }
             }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+        ) { DatePicker(state = datePickerState) }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
+    // RELOJ INICIO DIALOG
+    if (mostrarRelojInicio) {
+        TimePickerDialog(
+            title = "Hora de inicio",
+            onDismissRequest = { mostrarRelojInicio = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarRelojInicio = false
+                    horaEntrada = String.format(Locale.getDefault(), "%02d:%02d", timePickerStateInicio.hour, timePickerStateInicio.minute)
+                }) { Text("OK", color = colorBotonOscuro) }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarRelojInicio = false }) { Text("Cancelar", color = Color.Gray) }
+            }
+        ) { TimePicker(state = timePickerStateInicio) }
+    }
+
+    // RELOJ FIN DIALOG
+    if (mostrarRelojFin) {
+        TimePickerDialog(
+            title = "Hora de fin",
+            onDismissRequest = { mostrarRelojFin = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarRelojFin = false
+                    horaSalida = String.format(Locale.getDefault(), "%02d:%02d", timePickerStateFin.hour, timePickerStateFin.minute)
+                }) { Text("OK", color = colorBotonOscuro) }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarRelojFin = false }) { Text("Cancelar", color = Color.Gray) }
+            }
+        ) { TimePicker(state = timePickerStateFin) }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         CenterAlignedTopAppBar(
             title = { Text(text = nombreCancha, fontWeight = FontWeight.Bold) },
             navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
-                }
+                IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Atrás") }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-        ) {
-            Text(
-                text = "Realizar una reserva",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+            Text(text = "Realizar una reserva", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 16.dp))
 
-            // 1. FECHA
+            // 1. CAMPO FECHA
             Text("Fecha:", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
             OutlinedTextField(
                 value = fecha,
@@ -200,168 +266,75 @@ fun ReservaScreen(
                 enabled = false,
                 readOnly = true,
                 placeholder = { Text("Selecciona una fecha", color = Color.Gray) },
-                trailingIcon = {
-                    Icon(Icons.Default.DateRange, contentDescription = "Calendario", tint = colorBotonOscuro)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { if (!estaCargando) mostrarCalendario = true },
+                trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = "Calendario", tint = colorBotonOscuro) },
+                modifier = Modifier.fillMaxWidth().clickable { if (!estaCargando) mostrarCalendario = true },
                 shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    disabledTextColor = Color.Black,
-                    disabledBorderColor = Color.LightGray
-                )
+                colors = OutlinedTextFieldDefaults.colors(disabledTextColor = Color.Black, disabledBorderColor = Color.Gray)
             )
 
-            // 2. SELECTOR DE HORAS (solo aparece cuando hay fecha)
+            // 2. CAMPOS DE RELOJ (Solo se muestran si ya escogió fecha)
             if (fecha.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Leyenda de colores
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(colorVerde, RoundedCornerShape(3.dp))
+                val tieneErrorDeHorario = mensajeErrorLocal != null // Bandera para poner los inputs en rojo
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Hora Inicio
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Hora Entrada:", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
+                        OutlinedTextField(
+                            value = horaEntrada,
+                            onValueChange = {},
+                            enabled = false,
+                            readOnly = true,
+                            isError = tieneErrorDeHorario, // 🔴 Se pone rojo si hay error
+                            placeholder = { Text("--:--", color = Color.Gray) },
+                            trailingIcon = { Icon(Icons.Default.Schedule, contentDescription = "Reloj", tint = colorBotonOscuro) },
+                            modifier = Modifier.fillMaxWidth().clickable { mostrarRelojInicio = true },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = if (tieneErrorDeHorario) Color.Red else Color.Black,
+                                disabledBorderColor = if (tieneErrorDeHorario) Color.Red else Color.Gray
+                            )
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Disponible", fontSize = 11.sp, color = Color.Gray)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(colorRojo, RoundedCornerShape(3.dp))
+                    // Hora Fin
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Hora Salida:", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
+                        OutlinedTextField(
+                            value = horaSalida,
+                            onValueChange = {},
+                            enabled = false,
+                            readOnly = true,
+                            isError = tieneErrorDeHorario, // 🔴 Se pone rojo si hay error
+                            placeholder = { Text("--:--", color = Color.Gray) },
+                            trailingIcon = { Icon(Icons.Default.Schedule, contentDescription = "Reloj", tint = colorBotonOscuro) },
+                            modifier = Modifier.fillMaxWidth().clickable { mostrarRelojFin = true },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = if (tieneErrorDeHorario) Color.Red else Color.Black,
+                                disabledBorderColor = if (tieneErrorDeHorario) Color.Red else Color.Gray
+                            )
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Ocupado", fontSize = 11.sp, color = Color.Gray)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(colorSeleccionado, RoundedCornerShape(3.dp))
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Seleccionado", fontSize = 11.sp, color = Color.Gray)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (cargandoHoras) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = colorBotonOscuro, modifier = Modifier.size(32.dp))
-                    }
-                } else {
-                    // ✅ GRID DE BLOQUES DE 15 MINUTOS
+                // MOSTRAR MENSAJE DE ERROR LOCAL (Choque de horarios o fuera de rango)
+                if (mensajeErrorLocal != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Hora de entrada:",
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        text = mensajeErrorLocal!!,
+                        color = Color.Red,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 300.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(bloques) { bloque ->
-                            val ocupado = esBloqueOcupado(bloque, horasOcupadas)
-                            val esEntrada = bloque == horaEntrada
-                            val esSalida = bloque == horaSalida
-
-                            val colorFondo = when {
-                                esEntrada || esSalida -> colorSeleccionado
-                                ocupado -> colorRojo
-                                else -> colorVerde
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(colorFondo)
-                                    .then(
-                                        if (!ocupado) Modifier.clickable {
-                                            // Lógica de selección entrada → salida
-                                            when {
-                                                horaEntrada.isEmpty() -> horaEntrada = bloque
-                                                horaSalida.isEmpty() && bloque > horaEntrada -> horaSalida = bloque
-                                                else -> {
-                                                    // Reinicia la selección
-                                                    horaEntrada = bloque
-                                                    horaSalida = ""
-                                                }
-                                            }
-                                        } else Modifier
-                                    )
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = bloque,
-                                    fontSize = 11.sp,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.SemiBold,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-
-                    // Muestra la selección actual
-                    if (horaEntrada.isNotEmpty() || horaSalida.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Entrada", fontSize = 11.sp, color = Color.Gray)
-                                    Text(
-                                        text = horaEntrada.ifEmpty { "--:--" },
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorSeleccionado,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                                Text("→", fontSize = 20.sp, color = Color.Gray)
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Salida", fontSize = 11.sp, color = Color.Gray)
-                                    Text(
-                                        text = horaSalida.ifEmpty { "--:--" },
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorSeleccionado,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. DESCRIPCIÓN
-            Text("Motivo / Descripción:", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
+            // 3. DESCRIPCIÓN (AHORA ES OPCIONAL)
+            Text("Motivo / Descripción (Opcional):", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
             OutlinedTextField(
                 value = descripcion,
                 onValueChange = { descripcion = it },
@@ -370,13 +343,9 @@ fun ReservaScreen(
                 shape = RoundedCornerShape(8.dp)
             )
 
-            if (error != null) {
-                Text(
-                    text = error!!,
-                    color = Color.Red,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+            // Error del Servidor Limpiado
+            if (errorServidorLimpio != null) {
+                Text(text = errorServidorLimpio, color = Color.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -384,20 +353,12 @@ fun ReservaScreen(
             // BOTÓN RESERVAR
             Button(
                 onClick = {
-                    val request = ReservaRequest(
-                        idArea = idArea,
-                        idUsuario = idUsuario,
-                        fecha = fecha,
-                        horaInicio = horaEntrada,
-                        horaFin = horaSalida,
-                        descripcion = descripcion
-                    )
+                    val request = ReservaRequest(idArea = idArea, idUsuario = idUsuario, fecha = fecha, horaInicio = horaEntrada, horaFin = horaSalida, descripcion = descripcion)
                     viewModel.crearReserva(request)
                 },
-                enabled = !estaCargando && fecha.isNotEmpty() && horaEntrada.isNotEmpty() && horaSalida.isNotEmpty(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
+                // ✅ EL BOTÓN SOLO SE ACTIVA SI LAS HORAS SON VÁLIDAS Y NO CHOCAN (La descripción ya no importa)
+                enabled = formularioValido && !estaCargando,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = colorBotonOscuro)
             ) {
@@ -407,7 +368,6 @@ fun ReservaScreen(
                     Text("Reservar", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
