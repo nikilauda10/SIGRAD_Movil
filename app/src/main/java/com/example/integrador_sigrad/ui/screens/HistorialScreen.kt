@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign // ✅ Importación necesaria para centrar
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -31,22 +32,29 @@ fun HistorialScreen(
     val estaCargando by viewModel.estaCargando.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // ✅ Estados para los filtros
+    // ✅ Estados para los filtros (Ahora usando los nombres visuales)
     var filtroEstado by remember { mutableStateOf("Todos") }
     var filtroFecha by remember { mutableStateOf("Más reciente") }
     var expandirEstado by remember { mutableStateOf(false) }
     var expandirFecha by remember { mutableStateOf(false) }
 
-    val opcionesEstado = listOf("Todos", "CONFIRMADA", "CANCELADA")
+    // Opciones del menú desplegable usando nombres amigables
+    val opcionesEstado = listOf("Todos", "ACTIVA", "FINALIZADA", "CANCELADA")
     val opcionesFecha = listOf("Más reciente", "Más antigua")
 
     // ✅ Aplicamos los filtros sobre la lista completa
     val reservasFiltradas = remember(reservas, filtroEstado, filtroFecha) {
         var lista = reservas
 
-        // Filtro por estado
+        // Filtro por estado (Hacemos la traducción a la inversa para filtrar correctamente la base de datos)
         if (filtroEstado != "Todos") {
-            lista = lista.filter { it.estado.uppercase() == filtroEstado }
+            val estadoDB = when (filtroEstado) {
+                "ACTIVA" -> "CONFIRMADA"
+                "FINALIZADA" -> "COMPLETADA"
+                "CANCELADA" -> "CANCELADA"
+                else -> filtroEstado
+            }
+            lista = lista.filter { it.estado.uppercase() == estadoDB }
         }
 
         // Filtro por fecha
@@ -133,8 +141,9 @@ fun HistorialScreen(
                         DropdownMenuItem(
                             text = {
                                 val color = when (opcion) {
-                                    "CONFIRMADA" -> Color(0xFF5CB85C)
-                                    "CANCELADA" -> Color(0xFFF44336)
+                                    "ACTIVA" -> Color(0xFF4CAF50)      // Verde
+                                    "FINALIZADA" -> Color(0xFF9E9E9E)  // Gris
+                                    "CANCELADA" -> Color(0xFFF44336)   // Rojo
                                     else -> Color.Black
                                 }
                                 Text(opcion, color = color, fontWeight = FontWeight.SemiBold)
@@ -190,6 +199,7 @@ fun HistorialScreen(
             else -> {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp), // Espacio para la navegación inferior
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(reservasFiltradas) { reserva ->
@@ -203,11 +213,12 @@ fun HistorialScreen(
 
 @Composable
 fun RegistroItemReal(reserva: Reserva) {
-    val colorEstado = when (reserva.estado.uppercase()) {
-        "CONFIRMADA" -> Color(0xFF5CB85C)
-        "CANCELADA"  -> Color(0xFFF44336)
-        "ACTUALIZADA" -> Color(0xFFFFA000)
-        else -> Color.Gray
+    // ✅ TRADUCCIÓN VISUAL: Asignamos nombre y colores según lo que manda la base de datos
+    val (textoEstado, colorFondo, colorTexto) = when (reserva.estado.uppercase()) {
+        "CONFIRMADA" -> Triple("ACTIVA", Color(0xFFE8F5E9), Color(0xFF4CAF50))
+        "COMPLETADA" -> Triple("FINALIZADA", Color(0xFFEEEEEE), Color(0xFF9E9E9E))
+        "CANCELADA"  -> Triple("CANCELADA", Color(0xFFFFEBEE), Color(0xFFF44336))
+        else         -> Triple(reserva.estado.uppercase(), Color(0xFFFFF3E0), Color(0xFFFF9800)) // Naranja por defecto
     }
 
     Card(
@@ -248,16 +259,19 @@ fun RegistroItemReal(reserva: Reserva) {
                 }
             }
 
+            // ✅ ETIQUETA VISUAL ALINEADA (Mismo tamaño para todas)
             Surface(
-                color = colorEstado.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(8.dp)
+                color = colorFondo,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.width(85.dp) // <-- Este es el truco para que midan igual
             ) {
                 Text(
-                    text = reserva.estado,
-                    color = colorEstado,
+                    text = textoEstado,
+                    color = colorTexto,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    textAlign = TextAlign.Center, // <-- Esto asegura que quede bien centrado
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
         }

@@ -16,6 +16,7 @@ import com.example.integrador_sigrad.viewmodel.AuthViewModel
 import com.example.integrador_sigrad.viewmodel.HistorialViewModel
 import com.example.integrador_sigrad.viewmodel.UsuarioViewModel
 import com.example.integrador_sigrad.viewmodel.ReservaViewModel
+import com.example.integrador_sigrad.viewmodel.InicioViewModel
 
 @Composable
 fun AppNavGraph(
@@ -28,6 +29,7 @@ fun AppNavGraph(
     val areasViewModel: AreaDeportivaViewModel = viewModel()
     val usuarioViewModel: UsuarioViewModel = viewModel()
     val reservaViewModel: ReservaViewModel = viewModel()
+    val inicioViewModel: InicioViewModel = viewModel() // ✅ INICIALIZADO EL NUEVO VIEWMODEL
 
     NavHost(
         navController = navController,
@@ -37,24 +39,12 @@ fun AppNavGraph(
         // --- RUTA 1: INICIO ---
         composable(RutasNavegacion.INICIO) {
             val idUsuario = authViewModel.usuarioLogueado?.id ?: 0L
-            val reservasUsuario by areasViewModel.reservasUsuario.collectAsState()
 
-            // ✅ Carga los datos apenas entra al inicio
-            LaunchedEffect(idUsuario) {
-                if (idUsuario > 0L) {
-                    areasViewModel.cargarTodo(idUsuario)
-                }
-            }
-
-            val ultimaReserva = reservasUsuario
-                .sortedByDescending { it.fecha }
-                .firstOrNull()
-
+            // ✅ Usamos la nueva InicioScreen que pide el viewModel y las funciones de acción
             InicioScreen(
+                idUsuario = idUsuario,
                 nombreUsuario = authViewModel.usuarioLogueado?.nombre ?: "",
-                ultimaReserva = ultimaReserva?.let {
-                    "${it.area.nombre} · ${it.fecha}"
-                } ?: "Sin reservas aún",
+                viewModel = inicioViewModel,
                 onIrAAreas = {
                     navController.navigate(RutasNavegacion.AREAS) {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -68,6 +58,16 @@ fun AppNavGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onEditarReserva = { reserva ->
+                    // Navegamos a la pantalla de edición pasándole el ID de la reserva
+                    navController.navigate(RutasNavegacion.editarReserva(reserva.id))
+                },
+                onCancelarReserva = { reserva ->
+                    // Cancelamos la reserva usando la lógica de áreasViewModel (como lo hacías antes)
+                    areasViewModel.cancelarReservaEspecifica(reserva.id, idUsuario)
+                    // Y recargamos la pantalla de inicio para que desaparezca la tarjeta
+                    inicioViewModel.cargarReservasDelUsuario(idUsuario)
                 }
             )
         }
@@ -78,28 +78,18 @@ fun AppNavGraph(
             val backStackEntry = navController.currentBackStackEntryAsState()
             val triggerRecarga by areasViewModel.triggerRecarga.collectAsState()
 
-            println("🔍 ID USUARIO EN AREAS: $idUsuario")
-            println("🔍 USUARIO: ${authViewModel.usuarioLogueado}")
-
-            // ✅ Solo carga cuando idUsuario es válido (mayor a 0)
+            // Solo carga cuando idUsuario es válido
             LaunchedEffect(backStackEntry.value?.destination?.route, triggerRecarga, idUsuario) {
                 if (backStackEntry.value?.destination?.route == RutasNavegacion.AREAS && idUsuario > 0L) {
-                    println("🚀 CARGANDO TODO para usuario: $idUsuario")
                     areasViewModel.cargarTodo(idUsuario)
                 }
             }
 
+            // Llamamos a la pantalla limpia
             AreasScreen(
                 viewModel = areasViewModel,
-                idUsuarioActual = idUsuario,
                 onReservarClick = { area ->
                     navController.navigate(RutasNavegacion.formularioReserva(area.nombre))
-                },
-                onEditarClick = { reserva ->
-                    navController.navigate(RutasNavegacion.editarReserva(reserva.id))
-                },
-                onCancelarClick = { area, reserva ->
-                    areasViewModel.cancelarReservaEspecifica(reserva.id, idUsuario)
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -147,28 +137,27 @@ fun AppNavGraph(
                 viewModel = reservaViewModel,
                 onBack = { navController.popBackStack() },
                 onNavegarAreas = {
-                    navController.popBackStack(RutasNavegacion.AREAS, inclusive = false)
+                    // ✅ Al terminar la reserva, regresamos al INICIO para que el usuario vea su nueva tarjeta
+                    navController.popBackStack(RutasNavegacion.INICIO, inclusive = false)
                 }
             )
         }
 
-        // --- RUTA 2.3: EDITAR RESERVA ✅ NUEVA ---
+        // --- RUTA 2.3: EDITAR RESERVA ✅ CORREGIDA ---
         composable(RutasNavegacion.EDITAR_RESERVA) { backStackEntry ->
             val idReserva = backStackEntry.arguments?.getString("idReserva")?.toLongOrNull() ?: 0L
-
-            // ✅ collectAsState() en vez de .value dentro de un Composable
-            val reservasUsuario by areasViewModel.reservasUsuario.collectAsState()
-            val areas by areasViewModel.areas.collectAsState()
             val idUsuario = authViewModel.usuarioLogueado?.id ?: 1L
 
-            // Buscamos los datos actuales de la reserva en la lista que ya tenemos
-            val reservaActual = reservasUsuario.find { it.id == idReserva }
+            // ✅ CORRECCIÓN CLAVE: Traemos las listas de ambos ViewModels
+            val reservasActivas by inicioViewModel.reservasActivas.collectAsState()
+            val reservasDesdeAreas by areasViewModel.reservasUsuario.collectAsState()
 
-            // Buscamos el nombre del área para mostrarlo en la pantalla
-            val areaDeReserva = areas.find { it.id == reservaActual?.area?.id }
+            // Buscamos la reserva en el InicioViewModel primero, y si no está, la buscamos en el AreasViewModel
+            val reservaActual = reservasActivas.find { it.id == idReserva }
+                ?: reservasDesdeAreas.find { it.id == idReserva }
 
             EditarReservaScreen(
-                nombreCancha = areaDeReserva?.nombre ?: "Cancha",
+                nombreCancha = reservaActual?.area?.nombre ?: "Cargando área...",
                 fechaActual = reservaActual?.fecha ?: "",
                 horaInicioActual = reservaActual?.horaInicio ?: "",
                 horaFinActual = reservaActual?.horaFin ?: "",
@@ -183,7 +172,9 @@ fun AppNavGraph(
                         horaFin = nuevaHoraFin,
                         descripcion = nuevaDescripcion,
                         onExito = {
-                            navController.popBackStack(RutasNavegacion.AREAS, inclusive = false)
+                            // ✅ Forzamos a recargar el Inicio para que el cambio se vea reflejado inmediatamente
+                            inicioViewModel.cargarReservasDelUsuario(idUsuario)
+                            navController.popBackStack(RutasNavegacion.INICIO, inclusive = false)
                         }
                     )
                 },

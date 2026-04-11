@@ -27,5 +27,9 @@ data class ReservaResponse(
 
 data class AreaEnReserva(
     @SerializedName("id")
-    val id: Long
+    val id: Long,
+
+    // ✅ AGREGAMOS EL NOMBRE PARA QUE KOTLIN LO RECONOZCA
+    @SerializedName("nombre")
+    val nombre: String? = null
 )
