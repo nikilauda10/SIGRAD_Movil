@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.example.integrador_sigrad.model.AreaDeportiva
+import com.example.integrador_sigrad.network.RetrofitClient
 import com.example.integrador_sigrad.viewmodel.AreaDeportivaViewModel
 
 val ColorBotonVerde = Color(0xFF5CB85C)
@@ -119,8 +120,8 @@ fun AreaCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // 🌐 URL optimizada para cargar la imagen en segundo plano
-            val imageUrl = "http://192.168.1.88:8080/api/areas/${area.id}/imagen"
+            // ✅ URL DINÁMICA: Ahora lee la IP directamente de tu archivo Retrofit
+            val imageUrl = "${RetrofitClient.BASE_URL}api/areas/${area.id}/imagen"
 
             SubcomposeAsyncImage(
                 model = imageUrl,
