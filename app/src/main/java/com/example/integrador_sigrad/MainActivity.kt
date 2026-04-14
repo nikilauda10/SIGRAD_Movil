@@ -31,16 +31,20 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val rootNavController = rememberNavController()
 
-                    // ✅ UN SOLO authViewModel para toda la app
+                    // UN SOLO authViewModel para toda la app
                     val authViewModel: AuthViewModel = viewModel()
+
+                    // ✅ PASO 3: Verificamos si hay sesión guardada en la memoria
+                    // Si el usuario existe, saltamos a "main". Si no, pedimos "login".
+                    val destinoInicial = if (authViewModel.usuarioLogueado != null) "main" else "login"
 
                     NavHost(
                         navController = rootNavController,
-                        startDestination = "login"
+                        startDestination = destinoInicial // ✅ Aquí usamos la variable que decide
                     ) {
                         composable("login") {
                             LoginScreen(
-                                authViewModel = authViewModel, // ✅ Lo pasamos
+                                authViewModel = authViewModel,
                                 onNavigateToRegistro = { rootNavController.navigate("registro") },
                                 onNavigateToRecuperar = { rootNavController.navigate("recuperar") },
                                 onLoginSuccess = {
@@ -64,7 +68,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("main") {
-                            // ✅ Pasamos el mismo authViewModel a MainScreen
+                            // Pasamos el mismo authViewModel a MainScreen
                             MainScreen(authViewModel = authViewModel,
                                 onCerrarSesion = {
                                     rootNavController.navigate("login") {
