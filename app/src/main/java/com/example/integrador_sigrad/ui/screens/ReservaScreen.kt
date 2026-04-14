@@ -104,11 +104,21 @@ fun ReservaScreen(
             override fun isSelectableDate(utcTimeMillis: Long): Boolean {
                 val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                 calendar.timeInMillis = utcTimeMillis
-                return calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY
+
+                // Calculamos "Hoy"
+                val hoy = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                hoy.set(Calendar.HOUR_OF_DAY, 0)
+                hoy.set(Calendar.MINUTE, 0)
+                hoy.set(Calendar.SECOND, 0)
+                hoy.set(Calendar.MILLISECOND, 0)
+
+                val esDomingo = calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+                val esPasado = utcTimeMillis < hoy.timeInMillis // 🔴 Bloquea el pasado
+
+                return !esDomingo && !esPasado
             }
         }
     )
-
     val timePickerStateInicio = rememberTimePickerState()
     val timePickerStateFin = rememberTimePickerState()
 
@@ -117,20 +127,34 @@ fun ReservaScreen(
     var formularioValido by remember { mutableStateOf(false) }
 
     // Cada que el usuario cambia una hora, verificamos todo
-    LaunchedEffect(horaEntrada, horaSalida, horasOcupadas) {
+    // Asegúrate de agregar 'fecha' en la lista del LaunchedEffect:
+    LaunchedEffect(horaEntrada, horaSalida, horasOcupadas, fecha) {
         if (horaEntrada.isNotEmpty() && horaSalida.isNotEmpty()) {
+            val minInicio = timeToMinutes(horaEntrada) // Usa timeToMin en EditarReservaScreen
+            val minFin = timeToMinutes(horaSalida)     // Usa timeToMin en EditarReservaScreen
+
+            // Calculamos la hora y fecha actual
+            val formatoFecha = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val fechaHoy = formatoFecha.format(Date())
+            val calendarioAhora = Calendar.getInstance()
+            val minActual = calendarioAhora.get(Calendar.HOUR_OF_DAY) * 60 + calendarioAhora.get(Calendar.MINUTE)
+
+            // Variables para los horarios de apertura (solo en ReservaScreen, en Editar elimínalas si no las usas)
             val minApertura = timeToMinutes(horaApertura)
             val minCierre = timeToMinutes(horaCierre)
-            val minInicio = timeToMinutes(horaEntrada)
-            val minFin = timeToMinutes(horaSalida)
 
             when {
                 minInicio >= minFin -> {
                     mensajeErrorLocal = "La hora de salida debe ser mayor a la de entrada."
                     formularioValido = false
                 }
+                // 🔴 NUEVA REGLA: Si es hoy y seleccionó una hora vieja
+                fecha == fechaHoy && minInicio < minActual -> {
+                    mensajeErrorLocal = "No puedes seleccionar una hora que ya pasó."
+                    formularioValido = false
+                }
                 minInicio < minApertura || minFin > minCierre -> {
-                    mensajeErrorLocal = "Horario fuera de servicio ($horaApertura a $horaCierre)."
+                    mensajeErrorLocal = "Horario fuera de servicio."
                     formularioValido = false
                 }
                 hayChoqueDeHorarios(horaEntrada, horaSalida, horasOcupadas) -> {

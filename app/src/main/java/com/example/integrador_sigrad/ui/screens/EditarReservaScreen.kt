@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,7 +65,6 @@ fun EditarReservaScreen(
     onBack: () -> Unit
 ) {
     // ✅ EL SECRETO: remember(variable) obliga a la UI a actualizarse en cuanto el ViewModel manda los datos.
-    // Esto soluciona que la pantalla aparezca "vacía" al principio.
     var fecha by remember(fechaActual) { mutableStateOf(fechaActual) }
     var horaEntrada by remember(horaInicioActual) { mutableStateOf(horaInicioActual) }
     var horaSalida by remember(horaFinActual) { mutableStateOf(horaFinActual) }
@@ -82,7 +80,18 @@ fun EditarReservaScreen(
             override fun isSelectableDate(utcTimeMillis: Long): Boolean {
                 val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                 calendar.timeInMillis = utcTimeMillis
-                return calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY // Bloquea domingos
+
+                // Calculamos "Hoy"
+                val hoy = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                hoy.set(Calendar.HOUR_OF_DAY, 0)
+                hoy.set(Calendar.MINUTE, 0)
+                hoy.set(Calendar.SECOND, 0)
+                hoy.set(Calendar.MILLISECOND, 0)
+
+                val esDomingo = calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+                val esPasado = utcTimeMillis < hoy.timeInMillis // 🔴 Bloquea los días pasados en el calendario
+
+                return !esDomingo && !esPasado
             }
         }
     )
@@ -96,19 +105,36 @@ fun EditarReservaScreen(
     val colorBotonOscuro = Color(0xFF344356)
     val colorVerdeExito = Color(0xFF5CB85C)
 
-    // Validamos que la hora de entrada no sea mayor a la de salida
-    LaunchedEffect(horaEntrada, horaSalida) {
+    // ✅ VALIDACIONES DE HORA Y FECHA AL EDITAR
+    LaunchedEffect(horaEntrada, horaSalida, fecha) {
         if (horaEntrada.isNotEmpty() && horaSalida.isNotEmpty()) {
             val minInicio = timeToMin(horaEntrada)
             val minFin = timeToMin(horaSalida)
 
-            if (minInicio >= minFin) {
-                mensajeErrorLocal = "La hora de salida debe ser posterior a la de entrada."
-                formularioValido = false
-            } else {
-                mensajeErrorLocal = null
-                formularioValido = true
+            // Calculamos la hora y fecha actual
+            val formatoFecha = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val fechaHoy = formatoFecha.format(Date())
+            val calendarioAhora = Calendar.getInstance()
+            val minActual = calendarioAhora.get(Calendar.HOUR_OF_DAY) * 60 + calendarioAhora.get(Calendar.MINUTE)
+
+            when {
+                minInicio >= minFin -> {
+                    mensajeErrorLocal = "La hora de salida debe ser posterior a la de entrada."
+                    formularioValido = false
+                }
+                // 🔴 REGLA AÑADIDA: Si es hoy y seleccionó una hora vieja
+                fecha == fechaHoy && minInicio < minActual -> {
+                    mensajeErrorLocal = "No puedes seleccionar una hora que ya pasó."
+                    formularioValido = false
+                }
+                else -> {
+                    mensajeErrorLocal = null
+                    formularioValido = true
+                }
             }
+        } else {
+            mensajeErrorLocal = null
+            formularioValido = false
         }
     }
 
@@ -177,7 +203,7 @@ fun EditarReservaScreen(
 
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
 
-            // ✅ Mostramos el nombre del área claramente
+            // Mostramos el nombre del área claramente
             Card(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
@@ -244,6 +270,7 @@ fun EditarReservaScreen(
                 }
             }
 
+            // 🔴 MOSTRAR EL MENSAJE DE ERROR DE LA HORA PASADA
             if (mensajeErrorLocal != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = mensajeErrorLocal!!, color = Color.Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
